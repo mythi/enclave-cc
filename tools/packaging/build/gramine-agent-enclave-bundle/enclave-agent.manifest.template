@@ -1,0 +1,45 @@
+loader.preload = "file:{{ gramine.libos }}" # for compatibility with v1.0
+
+loader.entrypoint = "file:{{ gramine.libos }}"
+libos.entrypoint = "/enclave-agent"
+loader.log_level = "{{ log_level }}"
+loader.log_file = "enclave-agent_debug.log"
+loader.argv0_override = "enclave-agent"
+loader.insecure__use_cmdline_argv = true
+loader.insecure__use_host_env = true
+ 
+loader.env.LD_LIBRARY_PATH = "/lib:{{ arch_libdir }}:/usr{{ arch_libdir }}"
+
+fs.mounts = [
+ { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
+ { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
+ { path = "/usr{{ arch_libdir }}", uri = "file:/usr{{ arch_libdir }}" },
+ { path = "/etc", uri = "file:/etc" },
+ { path = "/var", uri = "file:/var" },
+ { path = "/etc/ssl", uri = "file:/etc/ssl" },
+ { path = "/usr/lib", uri = "file:/usr/lib" },
+ { path = "/dev/random", uri = "file:/dev/random" },
+ { path = "/run/image-security", uri = "file:/run/image-security" },
+ { type = "tmpfs", path = "/tmp" },
+ { type = "encrypted", path = "/enc", uri = "file:enc", key_name = "default" },
+]
+
+sgx.remote_attestation = "dcap"
+sgx.file_check_policy = "allow_all_but_log"
+
+loader.pal_internal_mem_size = "1024M"
+sgx.enclave_size = "4096M"
+
+sys.stack.size = "1024M"
+sgx.thread_num = 16
+
+sgx.debug = true
+sgx.nonpie_binary = true
+sys.insecure__allow_eventfd = true 
+
+sgx.trusted_files = [
+  "file:{{ gramine.libos }}/",
+  "file:enclave-agent",
+  "file:/etc/",
+  "file:{{ gramine.runtimedir() }}/",
+]
