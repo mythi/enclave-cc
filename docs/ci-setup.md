@@ -20,9 +20,120 @@ $ tail -3 /etc/containerd/config.toml
 ```
 
 # verdictd (for EAA-KBC testing)
-- install [verdictd](https://github.com/inclavare-containers/verdictd) and its dependencies
-- [RATS-TLS](https://github.com/inclavare-containers/rats-tls) version is recommended to be the same as what the `agent-enclave` build uses.
-- `/usr/local/bin/verdictd --listen 127.0.0.1:1234 --verifier sgx_ecdsa --attester nullattester --client-api 127.0.0.1:12340 --mutual`
+
+## Set-up
+
+We provide a verdictd image for quick set-up. Suppose a good sgx configuration is prepared in `/etc/sgx_default_qcnl.conf` where a non-localhost PCCS is configured.
+Run the following scripts to set up a verdictd server
+```bash
+mkdir -p $VERDICTD_WORKDIR/data
+docker run -d -v /etc/sgx_default_qcnl.conf:/etc/sgx_default_qcnl.conf \
+    -v $VERDICTD_WORKDIR/data:/opt/verdictd \
+    --device /dev/sgx_enclave \
+    --device /dev/sgx_provision \
+    -p 12345:12345 \
+    --env RUST_LOG=debug \
+    xynnn007/verdictd:v0.5.0-rc1 \
+    verdictd \
+    --listen 0.0.0.0:12345 \
+    --verifier sgx_ecdsa \
+    --attester nullattester \
+    --client-api 127.0.0.1:50000 \
+    --mutual
+```
+
+This will mount the directory `$VERDICTD_WORKDIR/data` as into the container to work as the data directory, and this service will listen to port `12345`.
+
+## Default Configurations (Optional)
+We can put some default configurations as following
+```bash
+mkdir -p $VERDICTD_WORKDIR/data/resources/default/security-policy
+
+cat <<EOF > $VERDICTD_WORKDIR/data/resources/default/security-policy/test
+{
+    "default": [{"type": "reject"}], 
+    "transports": {
+        "docker": {
+            "ghcr.io/confidential-containers": [
+                {
+                    "type": "insecureAcceptAnything"
+                }
+            ]
+        }
+    }
+}
+EOF
+
+mkdir -p $VERDICTD_WORKDIR/data/resources/default/sigstore-config
+
+cat <<EOF > $VERDICTD_WORKDIR/data/resources/default/sigstore-config/test
+default:
+    sigstore: file:///var/lib/containers/sigstore
+
+EOF
+
+mkdir -p $VERDICTD_WORKDIR/data/opa
+mkdir -p $VERDICTD_WORKDIR/data/keys
+
+cat <<EOF > $VERDICTD_WORKDIR/data/opa/sgxData
+{
+    "mrEnclave": [],
+    "mrSigner": [],
+    "productId": 0,
+    "svn": 0
+}
+EOF
+
+cat <<EOF > $VERDICTD_WORKDIR/data/opa/sgxPolicy.rego
+
+package policy
+
+# By default, deny requests.
+default allow = false
+
+allow {
+    mrEnclave_is_grant
+    mrSigner_is_grant
+    input.productId >= data.productId
+    input.svn >= data.svn
+}
+
+mrEnclave_is_grant {
+    count(data.mrEnclave) == 0
+}
+mrEnclave_is_grant {
+    count(data.mrEnclave) > 0
+    input.mrEnclave == data.mrEnclave[_]
+}
+
+mrSigner_is_grant {
+    count(data.mrSigner) == 0
+}
+mrSigner_is_grant {
+    count(data.mrSigner) > 0
+    input.mrSigner == data.mrSigner[_]
+}
+
+EOF
+```
+
+# KBS (for CC-KBC testing)
+
+We can set up a KBS cluster with docker-compose quickly.
+```
+git clone https://github.com/confidential-containers/kbs.git && cd kbs
+```
+
+1. change the as's image in `docker-compose.yml` to `docker.io/xynnn007/attestation-service:sgx-v0.6.0`
+2. change the PCCS configuration volume of as in `docker-compose.yml` to `/etc/sgx_default_qcnl.conf:/etc/sgx_default_qcnl.conf:rw`
+3. Run
+```bash
+openssl genpkey -algorithm ed25519 > config/private.key
+openssl pkey -in config/private.key -pubout -out config/public.pub
+```
+4. Run with `docker compose up -d`, and KBS will listen to port `8080` for requests
+
+We can add default configs under `data/kbs-storage` the same as verdictd.
 
 # Github Runner Service
 For `enclave-cc` e2e tests, we run a "job-started" pre-cleanup job configured
