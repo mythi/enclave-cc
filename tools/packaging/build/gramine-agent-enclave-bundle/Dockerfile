@@ -30,6 +30,7 @@ COPY tools/packaging/build/gramine-agent-enclave-bundle/Cargo.toml enclave-cc/sr
 
 RUN cd enclave-cc/src/enclave-agent && \
     . $HOME/.cargo/env && \
+    sed -i -e 's/\(.*security_validate: \).*/\1false,/g' src/services/images.rs  && \
     sed -i -e 's:^gramine_feature.*:gramine_feature = ["attestation_agent/default", "ocicrypt-rs/default"]:g' ../../../image-rs/Cargo.toml && \
     cargo build --release --no-default-features --features simple
 
@@ -42,8 +43,8 @@ RUN apt-get update && \
     ca-certificates \
     gnupg
 
-RUN curl -fsSL https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -
-RUN echo "deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/intel-sgx.list && \
+RUN curl -fsSL https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | gpg --dearmor --output /usr/share/keyrings/intel-sgx.gpg
+RUN echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-sgx.gpg] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main" | tee /etc/apt/sources.list.d/intel-sgx.list && \
     apt-get update && \
     env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     protobuf-compiler \
