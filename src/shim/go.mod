@@ -1,6 +1,7 @@
 module github.com/confidential-containers/enclave-cc/src/shim
 
 go 1.21
+toolchain go1.23.7
 
 require (
 	github.com/BurntSushi/toml v1.4.0
@@ -15,7 +16,7 @@ require (
 	github.com/prashantv/gostub v1.1.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/sys v0.24.0
+	golang.org/x/sys v0.31.0
 	google.golang.org/grpc v1.61.1
 )
 
